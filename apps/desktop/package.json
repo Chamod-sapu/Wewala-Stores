@@ -1,0 +1,41 @@
+{
+  "name": "@wewala/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Store POS & Admin Desktop Application for Wewala Stores",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "pack": "tsc && vite build && electron-builder --dir",
+    "dist": "tsc && vite build && electron-builder",
+    "dist:win": "tsc && vite build && electron-builder --win",
+    "dist:mac": "tsc && vite build && electron-builder --mac",
+    "dist:linux": "tsc && vite build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "@wewala/shared": "workspace:*",
+    "electron-updater": "^6.8.11",
+    "lucide-react": "^0.475.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.5",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.4",
+    "@types/node": "^26.6.6",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "tailwindcss": "^4.3.4",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.14"
+  }
+}

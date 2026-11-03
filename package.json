@@ -1,0 +1,28 @@
+{
+  "name": "wewala-stores-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Supabase-only e-commerce monorepo for Wewala Stores",
+  "scripts": {
+    "dev": "pnpm --filter @wewala/web dev",
+    "dev:web": "pnpm --filter @wewala/web dev",
+    "dev:desktop": "pnpm --filter @wewala/desktop dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset",
+    "supabase:status": "supabase status",
+    "supabase:gen-types": "supabase gen types typescript --local > packages/shared/src/database.types.ts"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
+  }
+}

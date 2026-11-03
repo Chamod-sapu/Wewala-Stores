@@ -1,0 +1,18 @@
+{
+  "name": "@wewala/shared",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types, database definitions, models, and Supabase client helpers for Wewala Stores",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}
+
