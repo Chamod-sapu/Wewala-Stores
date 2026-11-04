@@ -13,4 +13,32 @@ export declare function invokePlaceOrder(client: TypedSupabaseClient, params: Pl
     orderId: string | null;
     error: Error | null;
 }>;
+export interface ProcessCardPaymentParams {
+    orderId: string;
+    transactionId?: string;
+    cardBrand?: string;
+    last4?: string;
+    cardholderName?: string;
+    provider?: string;
+    metadata?: Record<string, any>;
+}
+export interface ProcessCardPaymentResponse {
+    success: boolean;
+    order_id?: string;
+    payment_id?: string;
+    transaction_id?: string;
+    amount?: number;
+    currency?: string;
+    payment_status?: string;
+    card_brand?: string;
+    last4?: string;
+    message?: string;
+}
+/**
+ * Helper to invoke the atomic process_card_payment RPC
+ */
+export declare function invokeProcessCardPayment(client: TypedSupabaseClient, params: ProcessCardPaymentParams): Promise<{
+    data: ProcessCardPaymentResponse | null;
+    error: Error | null;
+}>;
 //# sourceMappingURL=supabase-client.d.ts.map

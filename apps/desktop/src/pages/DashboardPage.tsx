@@ -27,8 +27,15 @@ import {
   Cell,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import { STORE_CONFIG, ORDER_STATUSES, OrderStatus, Product } from '@wewala/shared';
+import {
+  STORE_CONFIG,
+  ORDER_STATUSES,
+  OrderStatus,
+  Product,
+  isOrderVisibleInAdmin,
+} from '@wewala/shared';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface DashboardKPIs {
   today_revenue: number;
@@ -71,6 +78,7 @@ interface RecentOrder {
 }
 
 export default function DashboardPage() {
+  const { session } = useAdminAuth();
   const { notifications } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [restockingId, setRestockingId] = useState<string | null>(null);
@@ -102,36 +110,29 @@ export default function DashboardPage() {
   // 1. Fetch KPIs
   const fetchKPIs = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_dashboard_kpis');
-      if (!error && data) {
-        setKpis(data as unknown as DashboardKPIs);
-        return;
-      }
-    } catch {
-      // Fallback below
-    }
-
-    // Client-side fallback if RPC is not yet applied
-    try {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const isoToday = todayStart.toISOString();
 
-      // Orders today
+      // Orders today (filter to visible admin orders only: COD or completed Card payments)
       const { data: todayOrders } = await supabase
         .from('orders')
-        .select('total, status')
+        .select('total, status, payment_method, payment_status')
         .gte('created_at', isoToday);
 
-      const todayRev = (todayOrders || [])
+      const visibleTodayOrders = (todayOrders || []).filter(isOrderVisibleInAdmin);
+
+      const todayRev = visibleTodayOrders
         .filter((o) => o.status !== 'cancelled')
         .reduce((sum, o) => sum + Number(o.total || 0), 0);
 
-      // Pending orders
-      const { count: pendingCount } = await supabase
+      // Pending orders awaiting fulfillment (COD pending or paid card pending fulfillment)
+      const { data: pendingOrders } = await supabase
         .from('orders')
-        .select('*', { count: 'exact', head: true })
+        .select('payment_method, payment_status')
         .eq('status', 'pending');
+
+      const pendingCount = (pendingOrders || []).filter(isOrderVisibleInAdmin).length;
 
       // New customers today
       const { count: newCustomers } = await supabase
@@ -150,13 +151,13 @@ export default function DashboardPage() {
 
       setKpis({
         today_revenue: todayRev,
-        today_orders: todayOrders?.length || 0,
+        today_orders: visibleTodayOrders.length,
         new_customers_today: newCustomers || 0,
-        pending_orders: pendingCount || 0,
+        pending_orders: pendingCount,
         low_stock_count: lowCount,
       });
     } catch (err) {
-      console.warn('Fallback KPI fetch error:', err);
+      console.warn('Dashboard KPI fetch error:', err);
     }
   }, []);
 
@@ -164,25 +165,16 @@ export default function DashboardPage() {
   const fetchRevenueChart = useCallback(async (days: number) => {
     setChartLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_revenue_chart', { p_days: days });
-      if (!error && data && Array.isArray(data)) {
-        setRevenueData(data);
-        return;
-      }
-    } catch {
-      // Fallback below
-    }
-
-    // Client-side timeline fallback
-    try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
 
       const { data: orders } = await supabase
         .from('orders')
-        .select('created_at, total, status')
+        .select('created_at, total, status, payment_method, payment_status')
         .gte('created_at', cutoff.toISOString())
         .neq('status', 'cancelled');
+
+      const visibleOrders = (orders || []).filter(isOrderVisibleInAdmin);
 
       const map: Record<string, { revenue: number; order_count: number }> = {};
       for (let i = 0; i < days; i++) {
@@ -192,7 +184,7 @@ export default function DashboardPage() {
         map[key] = { revenue: 0, order_count: 0 };
       }
 
-      (orders || []).forEach((o) => {
+      visibleOrders.forEach((o) => {
         const key = o.created_at.split('T')[0];
         if (map[key]) {
           map[key].revenue += Number(o.total || 0);
@@ -208,7 +200,7 @@ export default function DashboardPage() {
 
       setRevenueData(chartList);
     } catch (err) {
-      console.warn('Fallback chart fetch error:', err);
+      console.warn('Dashboard chart fetch error:', err);
     } finally {
       setChartLoading(false);
     }
@@ -217,20 +209,14 @@ export default function DashboardPage() {
   // 3. Fetch Orders by Status
   const fetchStatusBreakdown = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_orders_by_status');
-      if (!error && data && Array.isArray(data)) {
-        setStatusData(data);
-        return;
-      }
-    } catch {
-      // Fallback
-    }
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('status, total, payment_method, payment_status');
 
-    try {
-      const { data: orders } = await supabase.from('orders').select('status, total');
       if (orders) {
+        const visibleOrders = orders.filter(isOrderVisibleInAdmin);
         const map: Record<string, { count: number; total: number }> = {};
-        orders.forEach((o) => {
+        visibleOrders.forEach((o) => {
           if (!map[o.status]) map[o.status] = { count: 0, total: 0 };
           map[o.status].count += 1;
           map[o.status].total += Number(o.total || 0);
@@ -243,36 +229,32 @@ export default function DashboardPage() {
         setStatusData(list);
       }
     } catch (err) {
-      console.warn('Status breakdown fallback error:', err);
+      console.warn('Status breakdown fetch error:', err);
     }
   }, []);
 
   // 4. Fetch Top Selling Products
   const fetchTopSelling = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_top_selling_products', { p_limit: 5 });
-      if (!error && data && Array.isArray(data)) {
-        setTopProducts(data);
-        return;
-      }
-    } catch {
-      // Fallback
-    }
+      const { data: ordersWithItems } = await supabase
+        .from('orders')
+        .select(
+          'payment_method, payment_status, status, order_items(product_id, name_snapshot, quantity, price_snapshot)'
+        )
+        .neq('status', 'cancelled');
 
-    try {
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('product_id, name_snapshot, quantity, price_snapshot');
-
-      if (items) {
+      if (ordersWithItems) {
+        const visibleOrders = ordersWithItems.filter(isOrderVisibleInAdmin);
         const map: Record<string, { name: string; units: number; revenue: number }> = {};
-        items.forEach((it) => {
-          const pid = it.product_id || it.name_snapshot;
-          if (!map[pid]) {
-            map[pid] = { name: it.name_snapshot, units: 0, revenue: 0 };
-          }
-          map[pid].units += it.quantity;
-          map[pid].revenue += it.quantity * Number(it.price_snapshot);
+        visibleOrders.forEach((o: any) => {
+          (o.order_items || []).forEach((it: any) => {
+            const pid = it.product_id || it.name_snapshot;
+            if (!map[pid]) {
+              map[pid] = { name: it.name_snapshot, units: 0, revenue: 0 };
+            }
+            map[pid].units += it.quantity;
+            map[pid].revenue += it.quantity * Number(it.price_snapshot);
+          });
         });
 
         const list = Object.entries(map)
@@ -288,22 +270,25 @@ export default function DashboardPage() {
         setTopProducts(list);
       }
     } catch (err) {
-      console.warn('Top products fallback error:', err);
+      console.warn('Top products fetch error:', err);
     }
   }, []);
 
   // 5. Fetch Recent Orders & Low Stock
   const fetchRecentAndLowStock = useCallback(async () => {
     try {
-      // Recent orders
+      // Recent orders: fetch 25 to allow filtering out pending card orders and keeping top 6
       const { data: orders } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(25);
 
       if (orders) {
-        setRecentOrders(orders as unknown as RecentOrder[]);
+        const visibleOrders = (orders as unknown as RecentOrder[])
+          .filter(isOrderVisibleInAdmin)
+          .slice(0, 6);
+        setRecentOrders(visibleOrders);
       }
 
       // Low stock products
@@ -384,8 +369,13 @@ export default function DashboardPage() {
 
   // Realtime subscription on orders & products to keep dashboard live
   useEffect(() => {
+    if (session?.access_token) {
+      supabase.realtime.setAuth(session.access_token);
+    }
+
+    const channelName = `dashboard-realtime-${Date.now()}`;
     const channel = supabase
-      .channel('dashboard-realtime-listener')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
@@ -410,7 +400,7 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [daysRange, fetchKPIs, fetchRevenueChart, fetchStatusBreakdown, fetchTopSelling, fetchRecentAndLowStock]);
+  }, [session, daysRange, fetchKPIs, fetchRevenueChart, fetchStatusBreakdown, fetchTopSelling, fetchRecentAndLowStock]);
 
   // Pie chart calculation
   const totalStatusOrders = useMemo(
@@ -880,7 +870,7 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-semibold">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold">
                     <th className="py-2.5">Order Ref</th>
                     <th className="py-2.5">Customer</th>
                     <th className="py-2.5">Payment</th>

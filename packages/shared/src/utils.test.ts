@@ -4,6 +4,7 @@ import {
   calculateDiscount,
   calculateShipping,
   calculateOrderTotals,
+  isOrderVisibleInAdmin,
 } from './utils';
 import { STORE_CONFIG } from './constants';
 
@@ -118,5 +119,39 @@ describe('Shared Utilities', () => {
       expect(result.total).toBe(1000 + STORE_CONFIG.defaultShippingFee);
     });
   });
+
+  describe('isOrderVisibleInAdmin', () => {
+    it('shows Cash on Delivery (COD) orders regardless of payment status', () => {
+      expect(isOrderVisibleInAdmin({ payment_method: 'cod', payment_status: 'pending' })).toBe(true);
+      expect(isOrderVisibleInAdmin({ payment_method: 'cod', payment_status: 'paid' })).toBe(true);
+      expect(isOrderVisibleInAdmin({ payment_method: 'cod', payment_status: 'unpaid' })).toBe(true);
+    });
+
+    it('hides Card orders when payment is pending or not paid', () => {
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: 'pending' })).toBe(false);
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: 'failed' })).toBe(false);
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: 'processing' })).toBe(false);
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: '' })).toBe(false);
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: null })).toBe(false);
+    });
+
+    it('shows Card orders only when payment_status is paid', () => {
+      expect(isOrderVisibleInAdmin({ payment_method: 'card', payment_status: 'paid' })).toBe(true);
+      expect(isOrderVisibleInAdmin({ payment_method: 'CARD', payment_status: 'PAID' })).toBe(true);
+      expect(isOrderVisibleInAdmin({ payment_method: 'stripe', payment_status: 'paid' })).toBe(true);
+      expect(isOrderVisibleInAdmin({ payment_method: 'payhere', payment_status: 'paid' })).toBe(true);
+    });
+
+    it('hides Stripe and PayHere orders when payment is pending', () => {
+      expect(isOrderVisibleInAdmin({ payment_method: 'stripe', payment_status: 'pending' })).toBe(false);
+      expect(isOrderVisibleInAdmin({ payment_method: 'payhere', payment_status: 'pending' })).toBe(false);
+    });
+
+    it('handles falsy or missing input gracefully', () => {
+      expect(isOrderVisibleInAdmin(null)).toBe(false);
+      expect(isOrderVisibleInAdmin(undefined)).toBe(false);
+    });
+  });
 });
+
 

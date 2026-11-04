@@ -35,3 +35,27 @@ export async function invokePlaceOrder(client, params) {
         return { orderId: null, error: err instanceof Error ? err : new Error(String(err)) };
     }
 }
+/**
+ * Helper to invoke the atomic process_card_payment RPC
+ */
+export async function invokeProcessCardPayment(client, params) {
+    try {
+        const { data, error } = await client.rpc('process_card_payment', {
+            p_order_id: params.orderId,
+            p_payment_method: 'card',
+            p_transaction_id: params.transactionId || null,
+            p_card_brand: params.cardBrand || 'visa',
+            p_last4: params.last4 || '4242',
+            p_cardholder_name: params.cardholderName || null,
+            p_provider: params.provider || 'card_gateway',
+            p_metadata: (params.metadata || {}),
+        });
+        if (error) {
+            return { data: null, error: new Error(error.message) };
+        }
+        return { data: data, error: null };
+    }
+    catch (err) {
+        return { data: null, error: err instanceof Error ? err : new Error(String(err)) };
+    }
+}

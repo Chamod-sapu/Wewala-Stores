@@ -25,7 +25,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { STORE_CONFIG, ORDER_STATUSES, OrderStatus } from '@wewala/shared';
+import { STORE_CONFIG, ORDER_STATUSES, OrderStatus, isOrderVisibleInAdmin } from '@wewala/shared';
 import {
   OrderInvoicePrint,
   PrintOrderData,
@@ -33,6 +33,7 @@ import {
 import { OrderPackingSlipPrint } from '@/components/orders/OrderPackingSlipPrint';
 import { OrderDetailDrawer } from '@/components/orders/OrderDetailDrawer';
 import { StatusChangeModal } from '@/components/orders/StatusChangeModal';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 
 interface OrderItem {
   id: string;
@@ -64,6 +65,7 @@ type SortDirection = 'asc' | 'desc';
 type DateRangeOption = 'all' | 'today' | '7days' | '30days' | 'custom';
 
 export default function OrdersPage() {
+  const { session } = useAdminAuth();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -112,7 +114,9 @@ export default function OrdersPage() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders((data as unknown as OrderRecord[]) || []);
+      const allOrders = (data as unknown as OrderRecord[]) || [];
+      const visibleOrders = allOrders.filter(isOrderVisibleInAdmin);
+      setOrders(visibleOrders);
     } catch (err) {
       console.warn('Error fetching orders:', err);
     } finally {
@@ -126,8 +130,13 @@ export default function OrdersPage() {
 
   // Real-time synchronization
   useEffect(() => {
+    if (session?.access_token) {
+      supabase.realtime.setAuth(session.access_token);
+    }
+
+    const channelName = `orders-page-${Date.now()}`;
     const channel = supabase
-      .channel('orders-page-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
@@ -140,7 +149,7 @@ export default function OrdersPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders]);
+  }, [session, fetchOrders]);
 
   // Handle Sort Toggle
   const handleSort = (column: SortColumn) => {
@@ -863,7 +872,7 @@ export default function OrdersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-400 font-bold uppercase tracking-wider select-none">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider select-none">
                     {/* Checkbox Col */}
                     <th className="py-3 px-4 w-10">
                       <input

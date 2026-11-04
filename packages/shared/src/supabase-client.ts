@@ -50,3 +50,56 @@ export async function invokePlaceOrder(
     return { orderId: null, error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
+
+export interface ProcessCardPaymentParams {
+  orderId: string;
+  transactionId?: string;
+  cardBrand?: string;
+  last4?: string;
+  cardholderName?: string;
+  provider?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ProcessCardPaymentResponse {
+  success: boolean;
+  order_id?: string;
+  payment_id?: string;
+  transaction_id?: string;
+  amount?: number;
+  currency?: string;
+  payment_status?: string;
+  card_brand?: string;
+  last4?: string;
+  message?: string;
+}
+
+/**
+ * Helper to invoke the atomic process_card_payment RPC
+ */
+export async function invokeProcessCardPayment(
+  client: TypedSupabaseClient,
+  params: ProcessCardPaymentParams
+): Promise<{ data: ProcessCardPaymentResponse | null; error: Error | null }> {
+  try {
+    const { data, error } = await client.rpc('process_card_payment', {
+      p_order_id: params.orderId,
+      p_payment_method: 'card',
+      p_transaction_id: params.transactionId || null,
+      p_card_brand: params.cardBrand || 'visa',
+      p_last4: params.last4 || '4242',
+      p_cardholder_name: params.cardholderName || null,
+      p_provider: params.provider || 'card_gateway',
+      p_metadata: (params.metadata || {}) as any,
+    });
+
+    if (error) {
+      return { data: null, error: new Error(error.message) };
+    }
+
+    return { data: data as unknown as ProcessCardPaymentResponse, error: null };
+  } catch (err: any) {
+    return { data: null, error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+

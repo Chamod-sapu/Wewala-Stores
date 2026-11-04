@@ -23,7 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { STORE_CONFIG, Address, Order, OrderStatus } from '@wewala/shared';
+import { STORE_CONFIG, Address, Order, OrderStatus, isOrderVisibleInAdmin } from '@wewala/shared';
 import type { UserWithStats } from '@wewala/shared';
 
 const formatPrice = (val: number) =>
@@ -92,7 +92,10 @@ export const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
         ]);
 
         if (addrRes.data) setAddresses(addrRes.data as Address[]);
-        if (orderRes.data) setOrders(orderRes.data as Order[]);
+        if (orderRes.data) {
+          const visibleOrders = (orderRes.data as Order[]).filter(isOrderVisibleInAdmin);
+          setOrders(visibleOrders);
+        }
       } catch (err) {
         console.warn('Error fetching user detail data:', err);
       } finally {

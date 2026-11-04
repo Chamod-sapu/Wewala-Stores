@@ -187,12 +187,15 @@ export default function ReviewsPage() {
       if (error || !data?.success) {
         // Fallback: direct table operation
         if (action === 'delete') {
-          await supabase.from('reviews').delete().eq('id', reviewId);
+          const { error: delErr } = await supabase.from('reviews').delete().eq('id', reviewId);
+          if (delErr) throw delErr;
         } else {
           const nextStatus: ReviewStatus =
             action === 'approve' ? 'approved' : action === 'hide' ? 'hidden' : 'pending';
           const isApp = nextStatus === 'approved';
-          await supabase
+
+          // Try updating with status first
+          const { error: updErr } = await supabase
             .from('reviews')
             .update({
               status: nextStatus,
@@ -200,6 +203,20 @@ export default function ReviewsPage() {
               updated_at: new Date().toISOString(),
             })
             .eq('id', reviewId);
+
+          // If updating with status column fails (e.g. status column does not exist yet), fall back to is_approved
+          if (updErr) {
+            console.warn('Update with status column failed, falling back to is_approved only:', updErr);
+            const { error: fallbackErr } = await supabase
+              .from('reviews')
+              .update({
+                is_approved: isApp,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', reviewId);
+
+            if (fallbackErr) throw fallbackErr;
+          }
         }
       }
 
@@ -223,6 +240,9 @@ export default function ReviewsPage() {
           )
         );
       }
+
+      // Re-fetch to ensure remote database state and stats stay in sync
+      fetchReviewsData();
     } catch (err: any) {
       alert(`Could not moderate review: ${err.message || err}`);
     }
@@ -615,7 +635,7 @@ export default function ReviewsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-400 font-bold uppercase tracking-wider select-none">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider select-none">
                       {/* Select All */}
                       <th className="py-3 px-4 w-10">
                         <input

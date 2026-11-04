@@ -16,6 +16,9 @@ import {
   MonitorCheck,
   Bell,
   Check,
+  Volume2,
+  VolumeX,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
@@ -39,7 +42,17 @@ const NAV_ITEMS: NavItem[] = [
 
 export function AdminLayout() {
   const { user, profile, logout } = useAdminAuth();
-  const { notifications, unreadCount, markAllAsRead } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAllAsRead,
+    connectionStatus,
+    isMuted,
+    setIsMuted,
+    testAlert,
+    reconnect,
+    requestPermission,
+  } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -51,7 +64,8 @@ export function AdminLayout() {
   // Dark mode state
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('desktop_theme');
-    return saved ? saved === 'dark' : true;
+    if (saved) return saved === 'dark';
+    return document.documentElement.classList.contains('dark');
   });
 
   // Notification menu popover
@@ -89,7 +103,7 @@ export function AdminLayout() {
   const pageTitle = currentNav?.label || 'Admin Console';
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden ${isDark ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'}`}>
+    <div className={`flex h-screen w-screen overflow-hidden ${isDark ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       {/* ============================================================== */}
       {/* COLLAPSIBLE SIDEBAR                                            */}
       {/* ============================================================== */}
@@ -197,17 +211,49 @@ export function AdminLayout() {
         >
           {/* Left: Page Title */}
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-extrabold tracking-tight">{pageTitle}</h1>
+            <h1 className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">{pageTitle}</h1>
           </div>
 
           {/* Right: Actions, Theme Toggle, Notification Bell, Admin Profile */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Realtime Live Status Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                if (connectionStatus !== 'connected') reconnect();
+              }}
+              title={
+                connectionStatus === 'connected'
+                  ? 'Realtime Sync Active'
+                  : 'Click to reconnect realtime channel'
+              }
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition border ${
+                connectionStatus === 'connected'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900/50'
+                  : connectionStatus === 'connecting'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50 animate-pulse'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50'
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  connectionStatus === 'connected'
+                    ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50'
+                    : connectionStatus === 'connecting'
+                    ? 'bg-amber-500'
+                    : 'bg-rose-500'
+                }`}
+              />
+              <span>{connectionStatus}</span>
+            </button>
+
             {/* Notification Bell */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => {
                   setIsNotificationOpen(!isNotificationOpen);
                   if (unreadCount > 0) markAllAsRead();
+                  requestPermission();
                 }}
                 className={`relative rounded-xl p-2 transition border ${
                   isDark
@@ -226,23 +272,73 @@ export function AdminLayout() {
 
               {/* Notification Popover */}
               {isNotificationOpen && (
-                <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-4 z-50 text-xs">
+                <div className="absolute right-0 mt-2 w-84 sm:w-96 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-4 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
                   <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-2">
-                    <span className="font-bold text-sm">Realtime Orders</span>
-                    <button
-                      onClick={markAllAsRead}
-                      className="text-[11px] text-brand-600 dark:text-brand-400 font-semibold hover:underline inline-flex items-center gap-1"
-                    >
-                      <Check size={12} /> Mark read
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm">Realtime Orders</span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase ${
+                          connectionStatus === 'connected'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
+                        }`}
+                      >
+                        {connectionStatus}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsMuted(!isMuted)}
+                        className={`p-1.5 rounded-lg border transition ${
+                          isMuted
+                            ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
+                        }`}
+                        title={
+                          isMuted
+                            ? 'Alert Sound Muted (Click to un-mute)'
+                            : 'Alert Sound Active (Click to mute)'
+                        }
+                      >
+                        {isMuted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={testAlert}
+                        className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-[10px] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center gap-1"
+                        title="Simulate a real-time order alert"
+                      >
+                        <Sparkles size={11} className="text-brand-500" /> Test
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={markAllAsRead}
+                        className="text-[11px] text-brand-600 dark:text-brand-400 font-semibold hover:underline inline-flex items-center gap-0.5"
+                      >
+                        <Check size={12} /> Clear
+                      </button>
+                    </div>
                   </div>
 
                   {notifications.length === 0 ? (
-                    <div className="py-6 text-center text-slate-400">
-                      No notifications yet. New incoming orders will appear here in real-time.
+                    <div className="py-8 text-center text-slate-400 space-y-1">
+                      <Bell
+                        size={24}
+                        className="mx-auto text-slate-300 dark:text-slate-600 mb-2 opacity-60"
+                      />
+                      <p className="font-semibold text-slate-600 dark:text-slate-300">
+                        No alerts yet
+                      </p>
+                      <p className="text-[11px]">
+                        Incoming store orders will trigger a sound chime and appear here live.
+                      </p>
                     </div>
                   ) : (
-                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 space-y-1">
+                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 space-y-1 pr-1">
                       {notifications.map((n) => (
                         <div
                           key={n.id}
@@ -250,10 +346,10 @@ export function AdminLayout() {
                             setIsNotificationOpen(false);
                             navigate('/orders');
                           }}
-                          className={`p-2 rounded-lg cursor-pointer transition ${
+                          className={`p-2.5 rounded-xl cursor-pointer transition ${
                             n.isRead
                               ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                              : 'bg-brand-50/50 dark:bg-brand-950/20 hover:bg-brand-50 dark:hover:bg-brand-950/40'
+                              : 'bg-brand-50/50 dark:bg-brand-950/20 hover:bg-brand-50 dark:hover:bg-brand-950/40 border border-brand-200/40 dark:border-brand-900/40'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -261,7 +357,11 @@ export function AdminLayout() {
                               {n.title}
                             </span>
                             <span className="text-[10px] text-slate-400 font-mono">
-                              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(n.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
@@ -308,7 +408,7 @@ export function AdminLayout() {
               </div>
 
               <div className="hidden sm:block text-left text-xs">
-                <p className="font-bold truncate max-w-[150px]">
+                <p className="font-bold truncate max-w-[150px] text-slate-900 dark:text-slate-100">
                   {profile?.full_name || 'System Admin'}
                 </p>
                 <p className="text-[10px] text-brand-600 dark:text-brand-400 font-bold uppercase tracking-wider">
@@ -320,7 +420,7 @@ export function AdminLayout() {
         </header>
 
         {/* Outlet Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50 dark:bg-slate-950">
           <Outlet />
         </main>
       </div>

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -69,6 +69,22 @@ export default function App() {
                   element={
                     <ProtectedRoute>
                       <OrderSuccessPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="orders"
+                  element={
+                    <ProtectedRoute>
+                      <Navigate to="/account?tab=orders" replace />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="wishlist"
+                  element={
+                    <ProtectedRoute>
+                      <Navigate to="/account?tab=wishlist" replace />
                     </ProtectedRoute>
                   }
                 />

@@ -15,12 +15,14 @@ import {
   ShieldCheck,
   FileText,
   Loader2,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { STORE_CONFIG, ORDER_STATUSES, OrderStatus, PaymentMethod } from '@wewala/shared';
 import { useCartStore } from '@/store/cartStore';
+import { CardPaymentGatewayModal } from '@/components/payment/CardPaymentGatewayModal';
 
 interface OrderDetailItem {
   id: string;
@@ -62,6 +64,7 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showCardPayModal, setShowCardPayModal] = useState(false);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -460,6 +463,29 @@ export default function OrderDetailPage() {
                     {STORE_CONFIG.currencySymbol} {order.total.toLocaleString()}
                   </span>
                 </div>
+
+                {/* Actionable Pay with Card Banner */}
+                {order.payment_method === 'card' &&
+                  order.payment_status !== 'paid' &&
+                  order.status !== 'cancelled' && (
+                    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-900/40 dark:bg-amber-950/20 space-y-2">
+                        <p className="text-xs font-bold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                          <CreditCard size={14} /> Card Payment Pending
+                        </p>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                          Complete card payment to authorize and dispatch your order.
+                        </p>
+                        <button
+                          onClick={() => setShowCardPayModal(true)}
+                          className="btn-primary w-full py-2 text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <Lock size={12} /> Pay {STORE_CONFIG.currencySymbol}{' '}
+                          {order.total.toLocaleString()} with Card
+                        </button>
+                      </div>
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -632,6 +658,22 @@ export default function OrderDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Standalone Card Payment Gateway Modal */}
+      {order && (
+        <CardPaymentGatewayModal
+          isOpen={showCardPayModal}
+          orderId={order.id}
+          amount={order.total}
+          recipientName={order.shipping_address?.recipient_name}
+          onClose={() => setShowCardPayModal(false)}
+          onSuccess={() => {
+            setOrder((prev) =>
+              prev ? { ...prev, status: 'paid', payment_status: 'paid' } : null
+            );
+          }}
+        />
       )}
     </>
   );

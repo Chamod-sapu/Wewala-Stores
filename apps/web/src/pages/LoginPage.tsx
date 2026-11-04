@@ -158,7 +158,16 @@ export function AuthPage({ initialMode = 'login' }: AuthPageProps) {
     try {
       const { error } = await signInWithGoogle(from);
       if (error) {
-        toast.error(error || 'Google Sign-In failed.');
+        if (
+          error.toLowerCase().includes('not enabled') ||
+          error.toLowerCase().includes('unsupported provider')
+        ) {
+          toast.error(
+            'Google Sign-In is not enabled yet. Please enable Google in your Supabase Dashboard under Authentication → Providers.'
+          );
+        } else {
+          toast.error(error || 'Google Sign-In failed.');
+        }
       }
     } catch (err: any) {
       toast.error('Could not connect to Google OAuth.');

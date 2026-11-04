@@ -561,18 +561,33 @@ export function useProductReviews(productId: string | undefined) {
       if (!productId) return [];
 
       try {
-        const { data, error } = await supabase
+        // First try joined query with reviewer profile details
+        let { data, error } = await supabase
           .from('reviews')
           .select('*, profiles(full_name, avatar_url)')
           .eq('product_id', productId)
           .eq('is_approved', true)
           .order('created_at', { ascending: false });
 
+        // If join throws (e.g., profiles RLS or relationship constraint), fallback to base reviews table
+        if (error) {
+          console.warn('Reviews join with profiles failed, retrying without join:', error);
+          const fallback = await supabase
+            .from('reviews')
+            .select('*')
+            .eq('product_id', productId)
+            .eq('is_approved', true)
+            .order('created_at', { ascending: false });
+
+          data = fallback.data as any;
+          error = fallback.error;
+        }
+
         if (error) throw error;
         if (data) {
           return data.map((r: any) => ({
             ...r,
-            profile: r.profiles || null,
+            profile: r.profiles || r.profile || null,
           }));
         }
       } catch (e) {

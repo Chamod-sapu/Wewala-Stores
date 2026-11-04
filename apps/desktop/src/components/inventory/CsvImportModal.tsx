@@ -145,7 +145,8 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         const sku = getVal('sku');
         const category = getVal('category');
         const price = parseFloat(getVal('price'));
-        const compare_at = parseFloat(getVal('compare_at_price'));
+        const raw_compare = parseFloat(getVal('compare_at_price'));
+        const compare_at = !isNaN(raw_compare) && raw_compare > 0 ? raw_compare : null;
         const stock = parseInt(getVal('stock'), 10);
         const threshold = parseInt(getVal('low_stock_threshold'), 10) || 5;
         const description = getVal('description');
@@ -163,6 +164,9 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
         } else if (isNaN(stock) || stock < 0) {
           isValid = false;
           validationError = 'Invalid stock';
+        } else if (compare_at !== null && !isNaN(price) && compare_at < price) {
+          isValid = false;
+          validationError = `Compare-at price (${compare_at}) cannot be lower than price (${price})`;
         }
 
         parsed.push({
@@ -171,7 +175,7 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
           sku,
           category,
           price: isNaN(price) ? 0 : price,
-          compare_at_price: isNaN(compare_at) ? null : compare_at,
+          compare_at_price: compare_at,
           stock: isNaN(stock) ? 0 : stock,
           low_stock_threshold: threshold,
           description,

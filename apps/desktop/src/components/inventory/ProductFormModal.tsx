@@ -218,11 +218,28 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       return;
     }
     if (price === '' || Number(price) <= 0) {
-      setErrorMsg('Price must be greater than 0.');
+      setErrorMsg('Retail Price must be greater than 0.');
       return;
     }
-    if (stock < 0) {
+
+    const numPrice = Number(price);
+    const numStock = Number(stock);
+    const numThreshold = Number(lowStockThreshold);
+    const parsedCompare =
+      compareAtPrice !== '' && Number(compareAtPrice) > 0 ? Number(compareAtPrice) : null;
+
+    if (numStock < 0) {
       setErrorMsg('Stock cannot be negative.');
+      return;
+    }
+    if (numThreshold < 0) {
+      setErrorMsg('Low stock threshold cannot be negative.');
+      return;
+    }
+    if (parsedCompare !== null && parsedCompare < numPrice) {
+      setErrorMsg(
+        `Original Price (${STORE_CONFIG.currencySymbol} ${parsedCompare}) cannot be lower than Retail Price (${STORE_CONFIG.currencySymbol} ${numPrice}). Leave Original Price empty if this product is not on sale.`
+      );
       return;
     }
 
@@ -243,10 +260,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             sku: sku.trim() || null,
             category_id: categoryId || null,
             description: description.trim() || null,
-            price: Number(price),
-            compare_at_price: compareAtPrice ? Number(compareAtPrice) : null,
-            stock: Number(stock),
-            low_stock_threshold: Number(lowStockThreshold),
+            price: numPrice,
+            compare_at_price: parsedCompare,
+            stock: numStock,
+            low_stock_threshold: numThreshold,
             is_active: isActive,
             updated_at: new Date().toISOString(),
           })
@@ -255,8 +272,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         if (prodErr) throw prodErr;
 
         // If stock changed, record adjustment
-        if (product.stock !== Number(stock)) {
-          const delta = Number(stock) - product.stock;
+        if (product.stock !== numStock) {
+          const delta = numStock - product.stock;
           await supabase.from('inventory_movements').insert({
             product_id: productId,
             change: delta,
@@ -274,10 +291,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             sku: sku.trim() || null,
             category_id: categoryId || null,
             description: description.trim() || null,
-            price: Number(price),
-            compare_at_price: compareAtPrice ? Number(compareAtPrice) : null,
-            stock: Number(stock),
-            low_stock_threshold: Number(lowStockThreshold),
+            price: numPrice,
+            compare_at_price: parsedCompare,
+            stock: numStock,
+            low_stock_threshold: numThreshold,
             is_active: isActive,
           })
           .select('id')
@@ -287,10 +304,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         productId = newProd.id;
 
         // Record initial stock intake
-        if (Number(stock) > 0) {
+        if (numStock > 0) {
           await supabase.from('inventory_movements').insert({
             product_id: productId,
-            change: Number(stock),
+            change: numStock,
             reason: 'Initial Product Inventory Intake',
             created_by: user?.id || null,
           });
@@ -494,6 +511,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   placeholder="2900.00"
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500"
                 />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Original MSRP strikethrough (must be ≥ Retail Price, or leave blank)
+                </span>
               </div>
 
               <div>

@@ -971,7 +971,7 @@ export default function AccountPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-3">
                     {wishlistItems.map((item) => {
                       const prod = item.product;
                       if (!prod) return null;
@@ -980,7 +980,7 @@ export default function AccountPage() {
                       return (
                         <div
                           key={item.id}
-                          className="group rounded-xl border border-slate-200 bg-white p-3 flex flex-col justify-between transition-all hover:border-slate-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+                          className="group rounded-xl border border-slate-200 bg-white p-2.5 sm:p-3 flex flex-col justify-between transition-all hover:border-slate-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
                         >
                           <div>
                             <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-slate-50 dark:bg-slate-800">
@@ -998,26 +998,27 @@ export default function AccountPage() {
 
                               <button
                                 onClick={() => handleRemoveWishlist(item.id)}
-                                className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow hover:text-rose-600 dark:bg-slate-900/90 dark:hover:text-rose-400"
+                                className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow hover:text-rose-600 dark:bg-slate-900/90 dark:hover:text-rose-400"
                                 title="Remove from wishlist"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} className="sm:hidden" />
+                                <Trash2 size={14} className="hidden sm:block" />
                               </button>
                             </div>
 
-                            <div className="mt-3">
+                            <div className="mt-2 sm:mt-3">
                               <Link
                                 to={`/products/${prod.slug}`}
-                                className="font-semibold text-sm text-slate-900 hover:text-brand-600 dark:text-white line-clamp-1"
+                                className="font-semibold text-xs sm:text-sm text-slate-900 hover:text-brand-600 dark:text-white line-clamp-1"
                               >
                                 {prod.name}
                               </Link>
-                              <div className="mt-1 flex items-baseline gap-2">
-                                <span className="font-bold text-slate-900 dark:text-white text-sm">
+                              <div className="mt-1 flex items-baseline gap-1.5 sm:gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
                                   {STORE_CONFIG.currencySymbol} {prod.price.toLocaleString()}
                                 </span>
                                 {prod.compare_at_price && prod.compare_at_price > prod.price && (
-                                  <span className="text-xs text-slate-400 line-through">
+                                  <span className="text-[10px] sm:text-xs text-slate-400 line-through">
                                     {STORE_CONFIG.currencySymbol}{' '}
                                     {prod.compare_at_price.toLocaleString()}
                                   </span>
@@ -1026,14 +1027,17 @@ export default function AccountPage() {
                             </div>
                           </div>
 
-                          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <div className="mt-3 sm:mt-4 pt-2 sm:pt-3 border-t border-slate-100 dark:border-slate-800">
                             <button
                               onClick={() => handleAddToCart(prod)}
                               disabled={prod.stock <= 0}
-                              className="btn-primary w-full text-xs py-2 inline-flex items-center justify-center gap-1.5"
+                              className="btn-primary w-full text-xs py-1.5 sm:py-2 inline-flex items-center justify-center gap-1.5"
+                              title={prod.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                             >
                               <ShoppingBag size={14} />{' '}
-                              {prod.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                              <span className="hidden sm:inline">
+                                {prod.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                              </span>
                             </button>
                           </div>
                         </div>

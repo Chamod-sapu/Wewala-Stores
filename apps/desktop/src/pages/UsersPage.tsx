@@ -26,7 +26,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { STORE_CONFIG, OrderStatus, PaymentMethod } from '@wewala/shared';
+import { STORE_CONFIG, OrderStatus, PaymentMethod, isOrderVisibleInAdmin } from '@wewala/shared';
 import type { UserWithStats, Address, Order } from '@wewala/shared';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { UserDetailDrawer } from '@/components/users/UserDetailDrawer';
@@ -85,7 +85,7 @@ export default function UsersPage() {
           .order('created_at', { ascending: false }),
         supabase
           .from('orders')
-          .select('user_id, total, status, created_at'),
+          .select('user_id, total, status, created_at, payment_method, payment_status'),
         supabase
           .from('addresses')
           .select('user_id'),
@@ -94,7 +94,7 @@ export default function UsersPage() {
       if (profilesRes.error) throw profilesRes.error;
 
       const rawProfiles = profilesRes.data || [];
-      const rawOrders = ordersRes.data || [];
+      const rawOrders = (ordersRes.data || []).filter(isOrderVisibleInAdmin);
       const rawAddresses = addressesRes.data || [];
 
       // Map metrics per user
@@ -615,7 +615,7 @@ export default function UsersPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 text-slate-400 font-semibold uppercase tracking-wider">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider">
                       <th className="py-3.5 px-4">Customer</th>
                       <th className="py-3.5 px-4">Contact Phone</th>
                       <th className="py-3.5 px-4">Role</th>

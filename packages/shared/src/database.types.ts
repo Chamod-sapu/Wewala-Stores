@@ -667,6 +667,19 @@ export interface Database {
         };
         Returns: Json;
       };
+      process_card_payment: {
+        Args: {
+          p_order_id: string;
+          p_payment_method?: string;
+          p_transaction_id?: string | null;
+          p_card_brand?: string;
+          p_last4?: string;
+          p_cardholder_name?: string | null;
+          p_provider?: string;
+          p_metadata?: Json;
+        };
+        Returns: Json;
+      };
       get_dashboard_kpis: {
         Args: Record<PropertyKey, never>;
         Returns: {

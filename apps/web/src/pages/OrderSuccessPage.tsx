@@ -10,10 +10,12 @@ import {
   Clock,
   ShieldCheck,
   CreditCard,
+  AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { STORE_CONFIG, OrderStatus, PaymentMethod } from '@wewala/shared';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
+import { CardPaymentGatewayModal } from '@/components/payment/CardPaymentGatewayModal';
 
 interface OrderSuccessData {
   id: string;
@@ -46,34 +48,50 @@ export default function OrderSuccessPage() {
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId');
   const paymentState = searchParams.get('payment');
+  const txParam = searchParams.get('tx');
+  const brandParam = searchParams.get('brand');
+  const last4Param = searchParams.get('last4');
 
   const [order, setOrder] = useState<OrderSuccessData | null>(null);
+  const [paymentRecord, setPaymentRecord] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showPayModal, setShowPayModal] = useState(false);
 
-  useEffect(() => {
-    async function loadOrder() {
-      if (!orderId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .eq('id', orderId)
-          .single();
-
-        if (error) throw error;
-        setOrder(data as unknown as OrderSuccessData);
-      } catch (err) {
-        console.warn('Could not load confirmed order:', err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchOrderDetails = async () => {
+    if (!orderId) {
+      setLoading(false);
+      return;
     }
 
-    loadOrder();
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('id', orderId)
+        .single();
+
+      if (error) throw error;
+      setOrder(data as unknown as OrderSuccessData);
+
+      // Fetch payment record
+      const { data: payData } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (payData) setPaymentRecord(payData);
+    } catch (err) {
+      console.warn('Could not load confirmed order:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrderDetails();
   }, [orderId]);
 
   if (loading) {
@@ -144,17 +162,43 @@ export default function OrderSuccessPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="badge-brand text-xs font-semibold uppercase px-3 py-1">
-                  Payment:{' '}
-                  {paymentState === 'cod'
-                    ? 'Cash on Delivery'
-                    : order?.payment_status === 'paid'
-                    ? 'Paid'
-                    : 'Authorized'}
-                </span>
+                {order?.payment_status === 'paid' || paymentState === 'paid' ? (
+                  <span className="rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-xs font-bold uppercase px-3 py-1 inline-flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> Paid via Card
+                  </span>
+                ) : paymentState === 'cod' ? (
+                  <span className="badge-brand text-xs font-semibold uppercase px-3 py-1">
+                    Cash on Delivery
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 text-xs font-bold uppercase px-3 py-1 inline-flex items-center gap-1.5">
+                    <AlertCircle size={13} /> Payment Pending
+                  </span>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Actionable Pending Payment Banner */}
+          {order?.payment_method === 'card' && order?.payment_status !== 'paid' && (
+            <div className="bg-amber-500/10 border-b border-amber-500/20 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="space-y-0.5">
+                <p className="font-bold text-amber-800 dark:text-amber-200 text-sm">
+                  Card Payment is Pending
+                </p>
+                <p className="text-amber-700/90 dark:text-amber-300/80">
+                  Your order is reserved. Please authorize card payment to begin dispatch.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPayModal(true)}
+                className="btn-primary py-2 px-4 text-xs font-bold shrink-0 inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <CreditCard size={14} /> Pay Now with Card ({STORE_CONFIG.currencySymbol}{' '}
+                {order.total.toLocaleString()})
+              </button>
+            </div>
+          )}
 
           {/* Next Steps Progress Flow */}
           <div className="p-6">
@@ -216,6 +260,22 @@ export default function OrderSuccessPage() {
                   <p className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5 mb-2">
                     <CreditCard size={16} className="text-brand-600" /> Payment & Total
                   </p>
+                  {(txParam || paymentRecord?.transaction_id) && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 font-mono text-[11px] pb-1 border-b border-slate-200/60 dark:border-slate-700">
+                      <span>Txn Ref</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {txParam || paymentRecord?.transaction_id}
+                      </span>
+                    </div>
+                  )}
+                  {(brandParam || paymentRecord?.metadata?.card_brand) && (
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400 pb-1 border-b border-slate-200/60 dark:border-slate-700">
+                      <span>Paid With</span>
+                      <span className="font-bold uppercase text-slate-800 dark:text-slate-200">
+                        {brandParam || paymentRecord?.metadata?.card_brand} •••• {last4Param || paymentRecord?.metadata?.last4 || '4242'}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600 dark:text-slate-400">
                     <span>Subtotal</span>
                     <span>
@@ -266,6 +326,20 @@ export default function OrderSuccessPage() {
           </Link>
         </div>
       </div>
+
+      {/* Standalone Card Payment Gateway Modal if paying for pending order */}
+      {order && (
+        <CardPaymentGatewayModal
+          isOpen={showPayModal}
+          orderId={order.id}
+          amount={order.total}
+          recipientName={order.shipping_address?.recipient_name}
+          onClose={() => setShowPayModal(false)}
+          onSuccess={() => {
+            fetchOrderDetails();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -134,7 +134,7 @@ export const MovementHistoryModal: React.FC<MovementHistoryModalProps> = ({
             </div>
           ) : (
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0 text-slate-400 uppercase text-[10px] font-bold">
+              <thead className="bg-slate-50 dark:bg-slate-950 sticky top-0 text-slate-600 dark:text-slate-400 uppercase text-[10px] font-bold">
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="py-2.5 px-4">Date & Time</th>
                   {!product && <th className="py-2.5 px-4">Product</th>}

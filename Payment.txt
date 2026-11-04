@@ -1,0 +1,38 @@
+How to Activate Live Money Deduction for Your Shop
+
+Follow these 3 steps to start accepting real money:
+
+Step 1: Create a PayHere Merchant Account
+Go to https://www.payhere.lk/merchant/register
+ and register an account for the shop.
+Submit your basic verification details:
+For registered businesses: Business Registration (BR) certificate.
+For individual / sole proprietorships: National Identity Card (NIC) & bank account statement.
+Link the shop's local bank account (e.g., Commercial Bank, Sampath Bank, HNB, BOC, etc.) where funds should be deposited.
+
+
+
+Step 2: Obtain Your Live Credentials
+Log in to the PayHere Merchant Portal
+.
+Go to Settings → Domains & Credentials.
+Copy your:
+Merchant ID (e.g., 1224567)
+Merchant Secret (a 32-character code)
+
+
+
+Step 3: Put Credentials into Your .env File
+
+Open apps/web/.env and fill in your live credentials:
+
+env
+# Live Payment Gateway Settings
+VITE_PAYMENT_GATEWAY=payhere
+VITE_PAYHERE_MERCHANT_ID=your_real_merchant_id_here
+VITE_PAYHERE_SECRET=your_real_merchant_secret_here
+VITE_PAYHERE_SANDBOX=false
+
+IMPORTANT
+
+When VITE_PAYHERE_SANDBOX=false, payments are 100% LIVE: customer debit cards will be debited with real rupees, and the money will be deposited directly into your shop's bank account. If VITE_PAYHERE_MERCHANT_ID is left empty, the system automatically falls back to demo/test mode so development is never blocked.

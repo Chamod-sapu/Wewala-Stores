@@ -38,7 +38,7 @@ import {
   Bar,
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
-import { STORE_CONFIG, ORDER_STATUSES, OrderStatus } from '@wewala/shared';
+import { STORE_CONFIG, ORDER_STATUSES, OrderStatus, isOrderVisibleInAdmin } from '@wewala/shared';
 import {
   SalesReportPrint,
   SalesReportPrintData,
@@ -218,78 +218,7 @@ export default function SalesPage() {
     setLoading(true);
 
     try {
-      // 1. Fetch Summary Metrics RPC (with client fallback)
-      let metricsData: SalesMetrics | null = null;
-      try {
-        const { data, error } = await supabase.rpc('get_sales_analytics', {
-          p_start_date: startIso,
-          p_end_date: endIso,
-        });
-        if (!error && data) {
-          metricsData = data as unknown as SalesMetrics;
-        }
-      } catch {
-        // Fallback below
-      }
-
-      // 2. Fetch Timeline RPC (with client fallback)
-      let timelineData: TimelineItem[] = [];
-      try {
-        const { data, error } = await supabase.rpc('get_sales_timeline', {
-          p_start_date: startIso,
-          p_end_date: endIso,
-        });
-        if (!error && data && Array.isArray(data)) {
-          timelineData = data;
-        }
-      } catch {
-        // Fallback below
-      }
-
-      // 3. Fetch Category Breakdown RPC
-      let categoryData: CategorySalesItem[] = [];
-      try {
-        const { data, error } = await supabase.rpc('get_sales_by_category_breakdown', {
-          p_start_date: startIso,
-          p_end_date: endIso,
-        });
-        if (!error && data && Array.isArray(data)) {
-          categoryData = data;
-        }
-      } catch {
-        // Fallback below
-      }
-
-      // 4. Fetch Payment Method Breakdown RPC
-      let paymentData: PaymentSalesItem[] = [];
-      try {
-        const { data, error } = await supabase.rpc('get_sales_by_payment_breakdown', {
-          p_start_date: startIso,
-          p_end_date: endIso,
-        });
-        if (!error && data && Array.isArray(data)) {
-          paymentData = data;
-        }
-      } catch {
-        // Fallback below
-      }
-
-      // 5. Fetch Top Products RPC
-      let topProdData: TopProductItem[] = [];
-      try {
-        const { data, error } = await supabase.rpc('get_sales_top_products_list', {
-          p_start_date: startIso,
-          p_end_date: endIso,
-          p_limit: 5,
-        });
-        if (!error && data && Array.isArray(data)) {
-          topProdData = data;
-        }
-      } catch {
-        // Fallback below
-      }
-
-      // 6. Fetch Raw Orders with order_items in this date range
+      // Fetch Raw Orders with order_items in this date range
       const { data: rawOrders } = await supabase
         .from('orders')
         .select('*, order_items(*)')
@@ -297,7 +226,10 @@ export default function SalesPage() {
         .lte('created_at', endIso)
         .order('created_at', { ascending: false });
 
-      const ordersList: SalesOrderRecord[] = (rawOrders || []).map((o: any) => ({
+      // Filter out uncompleted card payments (only show COD or paid card orders)
+      const visibleRawOrders = (rawOrders || []).filter(isOrderVisibleInAdmin);
+
+      const ordersList: SalesOrderRecord[] = visibleRawOrders.map((o: any) => ({
         id: o.id,
         created_at: o.created_at,
         customer_name: o.shipping_address?.recipient_name || 'Customer',
@@ -314,111 +246,100 @@ export default function SalesPage() {
 
       setOrderRecords(ordersList);
 
-      // Perform client-side aggregations if RPCs weren't executed on database
-      if (!metricsData) {
-        const valid = ordersList.filter((o) => o.status !== 'cancelled');
-        const gross = valid.reduce((sum, o) => sum + o.total, 0);
-        const refundsList = ordersList.filter(
-          (o) => o.status === 'refunded' || o.payment_status === 'refunded'
-        );
-        const refundTot = refundsList.reduce((sum, o) => sum + o.total, 0);
-        const net = Math.max(0, gross - refundTot);
-        const discTot = valid.reduce((sum, o) => sum + o.discount, 0);
-        const shipTot = valid.reduce((sum, o) => sum + o.shipping, 0);
-        const aov = valid.length > 0 ? Math.round(gross / valid.length) : 0;
+      // 1. Summary Metrics from visible orders
+      const valid = ordersList.filter((o) => o.status !== 'cancelled');
+      const gross = valid.reduce((sum, o) => sum + o.total, 0);
+      const refundsList = ordersList.filter(
+        (o) => o.status === 'refunded' || o.payment_status === 'refunded'
+      );
+      const refundTot = refundsList.reduce((sum, o) => sum + o.total, 0);
+      const net = Math.max(0, gross - refundTot);
+      const discTot = valid.reduce((sum, o) => sum + o.discount, 0);
+      const shipTot = valid.reduce((sum, o) => sum + o.shipping, 0);
+      const aov = valid.length > 0 ? Math.round(gross / valid.length) : 0;
 
-        metricsData = {
-          gross_revenue: gross,
-          net_revenue: net,
-          orders_count: valid.length,
-          average_order_value: aov,
-          refunds_count: refundsList.length,
-          refunds_total: refundTot,
-          discounts_total: discTot,
-          shipping_total: shipTot,
-        };
-      }
+      const metricsData: SalesMetrics = {
+        gross_revenue: gross,
+        net_revenue: net,
+        orders_count: valid.length,
+        average_order_value: aov,
+        refunds_count: refundsList.length,
+        refunds_total: refundTot,
+        discounts_total: discTot,
+        shipping_total: shipTot,
+      };
       setMetrics(metricsData);
 
-      if (timelineData.length === 0 && rawOrders) {
-        // Group daily
-        const map: Record<string, { revenue: number; order_count: number }> = {};
-        rawOrders
-          .filter((o) => o.status !== 'cancelled')
-          .forEach((o) => {
-            const dayKey = o.created_at.split('T')[0];
-            if (!map[dayKey]) map[dayKey] = { revenue: 0, order_count: 0 };
-            map[dayKey].revenue += Number(o.total || 0);
-            map[dayKey].order_count += 1;
-          });
-        timelineData = Object.entries(map).map(([sale_date, v]) => ({
-          sale_date,
-          revenue: v.revenue,
-          order_count: v.order_count,
-        }));
-      }
+      // 2. Timeline aggregation
+      const timelineMap: Record<string, { revenue: number; order_count: number }> = {};
+      valid.forEach((o) => {
+        const dayKey = o.created_at.split('T')[0];
+        if (!timelineMap[dayKey]) timelineMap[dayKey] = { revenue: 0, order_count: 0 };
+        timelineMap[dayKey].revenue += Number(o.total || 0);
+        timelineMap[dayKey].order_count += 1;
+      });
+      const timelineData: TimelineItem[] = Object.entries(timelineMap).map(([sale_date, v]) => ({
+        sale_date,
+        revenue: v.revenue,
+        order_count: v.order_count,
+      }));
       setTimeline(timelineData);
 
-      if (paymentData.length === 0 && rawOrders) {
-        const map: Record<string, { count: number; rev: number }> = {};
-        rawOrders
-          .filter((o) => o.status !== 'cancelled')
-          .forEach((o) => {
-            if (!map[o.payment_method]) map[o.payment_method] = { count: 0, rev: 0 };
-            map[o.payment_method].count += 1;
-            map[o.payment_method].rev += Number(o.total || 0);
-          });
-        paymentData = Object.entries(map).map(([pm, v]) => ({
-          payment_method: pm,
-          order_count: v.count,
-          total_revenue: v.rev,
-        }));
-      }
+      // 3. Payment Method breakdown
+      const payMap: Record<string, { count: number; rev: number }> = {};
+      valid.forEach((o) => {
+        const pm = o.payment_method || 'other';
+        if (!payMap[pm]) payMap[pm] = { count: 0, rev: 0 };
+        payMap[pm].count += 1;
+        payMap[pm].rev += Number(o.total || 0);
+      });
+      const paymentData: PaymentSalesItem[] = Object.entries(payMap).map(([pm, v]) => ({
+        payment_method: pm,
+        order_count: v.count,
+        total_revenue: v.rev,
+      }));
       setPaymentBreakdown(paymentData);
 
-      if (categoryData.length === 0 && rawOrders) {
-        // Fallback category aggregation
-        const catMap: Record<string, { units: number; rev: number }> = {};
-        rawOrders
-          .filter((o) => o.status !== 'cancelled')
-          .forEach((o) => {
-            (o.order_items || []).forEach((it: any) => {
-              const name = 'Store Items';
-              if (!catMap[name]) catMap[name] = { units: 0, rev: 0 };
-              catMap[name].units += it.quantity;
-              catMap[name].rev += it.quantity * Number(it.price_snapshot);
-            });
+      // 4. Category breakdown
+      const catMap: Record<string, { units: number; rev: number }> = {};
+      visibleRawOrders
+        .filter((o: any) => o.status !== 'cancelled')
+        .forEach((o: any) => {
+          (o.order_items || []).forEach((it: any) => {
+            const name = 'Store Items';
+            if (!catMap[name]) catMap[name] = { units: 0, rev: 0 };
+            catMap[name].units += Number(it.quantity || 0);
+            catMap[name].rev += Number(it.quantity || 0) * Number(it.price_snapshot || 0);
           });
-        categoryData = Object.entries(catMap).map(([name, v]) => ({
-          category_name: name,
+        });
+      const categoryData: CategorySalesItem[] = Object.entries(catMap).map(([name, v]) => ({
+        category_name: name,
+        units_sold: v.units,
+        total_revenue: v.rev,
+      }));
+      setCategorySales(categoryData);
+
+      // 5. Top selling products
+      const prodMap: Record<string, { name: string; sku: string | null; units: number; rev: number }> = {};
+      visibleRawOrders
+        .filter((o: any) => o.status !== 'cancelled')
+        .forEach((o: any) => {
+          (o.order_items || []).forEach((it: any) => {
+            const key = it.name_snapshot;
+            if (!prodMap[key]) prodMap[key] = { name: it.name_snapshot, sku: null, units: 0, rev: 0 };
+            prodMap[key].units += Number(it.quantity || 0);
+            prodMap[key].rev += Number(it.quantity || 0) * Number(it.price_snapshot || 0);
+          });
+        });
+      const topProdData: TopProductItem[] = Object.values(prodMap)
+        .sort((a, b) => b.rev - a.rev)
+        .slice(0, 5)
+        .map((v) => ({
+          product_name: v.name,
+          sku: v.sku,
           units_sold: v.units,
           total_revenue: v.rev,
         }));
-      }
-      setCategorySales(categoryData);
-
-      if (topProdData.length === 0 && rawOrders) {
-        const prodMap: Record<string, { name: string; sku: string | null; units: number; rev: number }> = {};
-        rawOrders
-          .filter((o) => o.status !== 'cancelled')
-          .forEach((o) => {
-            (o.order_items || []).forEach((it: any) => {
-              const key = it.name_snapshot;
-              if (!prodMap[key]) prodMap[key] = { name: it.name_snapshot, sku: null, units: 0, rev: 0 };
-              prodMap[key].units += it.quantity;
-              prodMap[key].rev += it.quantity * Number(it.price_snapshot);
-            });
-          });
-        topProdData = Object.values(prodMap)
-          .sort((a, b) => b.rev - a.rev)
-          .slice(0, 5)
-          .map((v) => ({
-            product_name: v.name,
-            sku: v.sku,
-            units_sold: v.units,
-            total_revenue: v.rev,
-          }));
-      }
       setTopProducts(topProdData);
     } catch (err) {
       console.error('Error fetching sales data:', err);
@@ -1073,7 +994,7 @@ export default function SalesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-400 font-bold uppercase tracking-wider">
+                  <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider">
                     <th className="py-3 px-4">Order Ref</th>
                     <th
                       className="py-3 px-4 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200"

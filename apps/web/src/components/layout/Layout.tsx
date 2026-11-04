@@ -6,9 +6,7 @@ import { CartDrawer } from './CartDrawer';
 export function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="print:hidden">
-        <Navbar />
-      </div>
+      <Navbar />
       <main className="flex-1">
         <Outlet />
       </main>

@@ -93,3 +93,24 @@ export function calculateOrderTotals(
   };
 }
 
+/**
+ * Determines whether an order should be displayed in the admin panel / dashboard.
+ * - For Card payments ('card', 'stripe', 'payhere'), only orders with completed
+ *   payment ('paid') are shown in the admin panel. Orders with pending/failed card payment are hidden.
+ * - For Cash on Delivery ('cod') or other payment methods, the order is displayed immediately.
+ */
+export function isOrderVisibleInAdmin(
+  order: {
+    payment_method?: string | null;
+    payment_status?: string | null;
+  } | null | undefined
+): boolean {
+  if (!order) return false;
+  const method = (order.payment_method || '').toLowerCase().trim();
+  if (method === 'card' || method === 'stripe' || method === 'payhere') {
+    return (order.payment_status || '').toLowerCase().trim() === 'paid';
+  }
+  return true;
+}
+
+

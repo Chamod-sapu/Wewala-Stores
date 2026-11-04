@@ -119,3 +119,14 @@ AS $$
   ORDER BY total_reviews DESC, average_rating DESC;
 $$;
 
+-- 4. Permissions & Public Profile Access (Allows reviewer names to display)
+GRANT EXECUTE ON FUNCTION public.admin_moderate_reviews(UUID[], TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_product_review_stats() TO authenticated, anon;
+
+-- Ensure public profile fields (name, avatar) can be read when loading product reviews
+DROP POLICY IF EXISTS "Public profile fields viewable by all users" ON public.profiles;
+CREATE POLICY "Public profile fields viewable by all users"
+  ON public.profiles FOR SELECT
+  USING (true);
+
+

@@ -19,6 +19,12 @@ export function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const cartCount = totalItems();
 
+  const avatarUrl =
+    profile?.avatar_url ||
+    (user?.user_metadata?.avatar_url as string) ||
+    (user?.user_metadata?.picture as string) ||
+    null;
+
   // Close user dropdown when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -53,7 +59,7 @@ export function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950 print:hidden">
       <div className="section-container">
         <div className="flex h-16 items-center gap-4">
           {/* Logo */}
@@ -124,11 +130,23 @@ export function Navbar() {
             <div className="relative" ref={userMenuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="btn-ghost flex items-center gap-1.5 rounded-full py-1.5 pl-2 pr-3 text-sm"
+                className="btn-ghost flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 sm:py-1.5 sm:pl-1.5 sm:pr-3 text-sm"
                 aria-expanded={userMenuOpen}
               >
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300">
-                  {profile?.full_name?.[0]?.toUpperCase() ?? <User size={14} />}
+                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-brand-700 ring-2 ring-brand-500/20 dark:bg-brand-900 dark:text-brand-300">
+                  <span className="text-xs font-bold">
+                    {profile?.full_name?.[0]?.toUpperCase() ?? <User size={14} />}
+                  </span>
+                  {avatarUrl && (
+                    <img
+                      src={avatarUrl}
+                      alt={profile?.full_name || 'User avatar'}
+                      className="absolute inset-0 h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  )}
                 </div>
                 <span className="hidden max-w-24 truncate sm:block">
                   {profile?.full_name?.split(' ')[0] ?? 'Account'}
@@ -137,16 +155,35 @@ export function Navbar() {
               </button>
 
               {userMenuOpen && (
-                <div className="card absolute right-0 top-full mt-2 w-52 overflow-hidden p-1 shadow-lg">
-                  <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-                    <p className="text-sm font-semibold">{profile?.full_name ?? 'User'}</p>
-                    <p className="truncate text-xs text-slate-500">{user.email}</p>
+                <div className="card absolute right-0 top-full mt-2 w-56 overflow-hidden p-1 shadow-lg">
+                  <div className="flex items-center gap-3 border-b border-slate-100 p-3 dark:border-slate-800">
+                    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-brand-700 ring-2 ring-brand-500/20 dark:bg-brand-900 dark:text-brand-300">
+                      <span className="text-sm font-bold">
+                        {profile?.full_name?.[0]?.toUpperCase() ?? <User size={15} />}
+                      </span>
+                      {avatarUrl && (
+                        <img
+                          src={avatarUrl}
+                          alt={profile?.full_name || 'User avatar'}
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                        {profile?.full_name ?? 'User'}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">{user.email}</p>
+                    </div>
                   </div>
                   <div className="mt-1 space-y-0.5">
                     {[
                       { to: '/account', label: 'My Account', icon: User },
-                      { to: '/orders', label: 'Orders', icon: Package },
-                      { to: '/wishlist', label: 'Wishlist', icon: Heart },
+                      { to: '/account?tab=orders', label: 'Orders', icon: Package },
+                      { to: '/account?tab=wishlist', label: 'Wishlist', icon: Heart },
                     ].map(({ to, label, icon: Icon }) => (
                       <Link
                         key={to}
@@ -218,13 +255,82 @@ export function Navbar() {
                 {label}
               </NavLink>
             ))}
-            {!user && (
+            {user ? (
               <>
                 <hr className="border-slate-200 dark:border-slate-800" />
-                <Link to="/login" onClick={() => setMobileOpen(false)} className="block rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+                <div className="flex items-center gap-3 rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900/60 my-1">
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-brand-700 ring-2 ring-brand-500/20 dark:bg-brand-900 dark:text-brand-300">
+                    <span className="text-sm font-bold">
+                      {profile?.full_name?.[0]?.toUpperCase() ?? <User size={16} />}
+                    </span>
+                    {avatarUrl && (
+                      <img
+                        src={avatarUrl}
+                        alt={profile?.full_name || 'User avatar'}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                      {profile?.full_name || 'User'}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">{user.email}</p>
+                  </div>
+                </div>
+                <Link
+                  to="/account"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <User size={15} />
+                  My Account
+                </Link>
+                <Link
+                  to="/account?tab=orders"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <Package size={15} />
+                  Orders
+                </Link>
+                <Link
+                  to="/account?tab=wishlist"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <Heart size={15} />
+                  Wishlist
+                </Link>
+                <button
+                  onClick={() => {
+                    signOut();
+                    setMobileOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                >
+                  <LogOut size={15} />
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <hr className="border-slate-200 dark:border-slate-800" />
+                <Link
+                  to="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="block rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
                   Login
                 </Link>
-                <Link to="/signup" onClick={() => setMobileOpen(false)} className="btn-primary mt-1 w-full text-sm">
+                <Link
+                  to="/signup"
+                  onClick={() => setMobileOpen(false)}
+                  className="btn-primary mt-1 w-full text-sm"
+                >
                   Sign Up
                 </Link>
               </>
